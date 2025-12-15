@@ -95,7 +95,7 @@ public class PaymentOrchestratorSolution {
         // requestID --> Result (APPROVED/DECLINED)
         HashMap<String, Result> result = new HashMap<>();
 
-        //transaction --> TransactionID
+        //transactionID --> TransactionInfo
         HashMap<String, TransactionInfo> transactions = new HashMap<>();
 
 

@@ -93,10 +93,11 @@ public class PaymentOrchestratorSolution {
         List<String> log = new ArrayList<>();
 
         // requestID --> Result (APPROVED/DECLINED)
-        HashMap<String, Result> hashedRequests = new HashMap<>();
+        HashMap<String, Result> result = new HashMap<>();
 
         //transaction --> TransactionID
         HashMap<String, TransactionInfo> transactions = new HashMap<>();
+
 
         return log;
     }

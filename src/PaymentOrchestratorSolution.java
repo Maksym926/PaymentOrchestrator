@@ -1,6 +1,7 @@
 import java.util.*;
 
 public class PaymentOrchestratorSolution {
+
     enum ActionType{ //  enum for tracking actions
         AUTHORIZE,
         CAPTURE,
@@ -37,6 +38,7 @@ public class PaymentOrchestratorSolution {
             this.transactionID = transactionID;
             this.amount = amount;
             this.currency = currency;
+
         }
 
 
@@ -47,10 +49,16 @@ public class PaymentOrchestratorSolution {
         private long authorizedAmount = 0;
         private long capturedAmount;
         private long refundedAmount;
+        private FailedTransaction failedTransaction = null;
+        private String currency;
 
 
         TransactionInfo(String transactionID) {
             this.transactionID = transactionID;
+        }
+        TransactionInfo(String transactionID, String currency) {
+            this.transactionID = transactionID;
+            this.currency = currency;
         }
 
 
@@ -89,6 +97,38 @@ public class PaymentOrchestratorSolution {
         public void setAuthorizedAmount(long authorizedAmount) {
             this.authorizedAmount = authorizedAmount;
         }
+
+        public void setFailedRequest(ActionType failedAction, long amount, String failReason){
+            failedTransaction = new FailedTransaction(failedAction, amount, failReason);
+        }
+        public FailedTransaction getFailedTransaction(){
+            return this.failedTransaction;
+        }
+    }
+
+    static class FailedTransaction{
+        public ActionType getFailedAction() {
+            return failedAction;
+        }
+
+        public long getAmount() {
+            return amount;
+        }
+
+        public String getFailReason() {
+            return failReason;
+        }
+
+        private ActionType failedAction;
+        private long amount;
+        private String failReason;
+
+
+        public FailedTransaction(ActionType action, long amount, String failReason) {
+            this.failedAction = action;
+            this.amount = amount;
+            this.failReason = failReason;
+        }
     }
 
     // requestID --> Result (APPROVED/DECLINED)
@@ -97,12 +137,11 @@ public class PaymentOrchestratorSolution {
     //transactionID --> TransactionInfo
     HashMap<String, TransactionInfo> transactions = new HashMap<>();
 
+
+
     List<String> log = new ArrayList<>();
 
     private List<String> requestProcessing(List<String> requests){
-
-
-
 
         for(int i = 0; i<requests.size(); i++){
             String request = requests.get(i);
@@ -114,120 +153,9 @@ public class PaymentOrchestratorSolution {
             String currency = splitRequest[4];
             RequestInfo requestInfo = new RequestInfo(action,requestId , transactionId, amount, currency);
 
-            switch (requestInfo.action){
-                case AUTHORIZE:
-                    if(!result.containsKey(requestInfo.requestID)){
-                        if(transactions.containsKey(requestInfo.transactionID)){
-                            addResultHelper(requestInfo.requestID, Result.DECLINED);
-                        }else{
-                            TransactionInfo newTransaction = new TransactionInfo(requestInfo.transactionID);
-                            newTransaction.state = StateType.AUTHORIZED;
-                            newTransaction.authorizedAmount = requestInfo.amount;
-                            transactions.put(newTransaction.transactionID, newTransaction);
-                            addResultHelper(requestInfo.requestID, Result.APPROVED);
-                        }
 
 
-                    }else {
-                        addResultHelper(requestInfo.requestID, Result.REPLAY);
-                    }
-                    break;
-                case CAPTURE:
-                    if(!result.containsKey(requestInfo.requestID)){
-                        if(transactions.containsKey(requestInfo.transactionID)){
-                            TransactionInfo existing = transactions.get(requestInfo.transactionID);
-                            switch (existing.state){
-                                case AUTHORIZED, PARTIALLY_CAPTURED:
-                                    if(existing.capturedAmount + requestInfo.amount < existing.authorizedAmount){
-                                        existing.state = StateType.PARTIALLY_CAPTURED;
-                                        existing.capturedAmount += requestInfo.amount;
 
-                                        addResultHelper(requestInfo.requestID, Result.APPROVED);
-
-                                    }
-                                    else if(existing.capturedAmount + requestInfo.amount == existing.authorizedAmount){
-                                        existing.state = StateType.CAPTURED;
-                                        existing.capturedAmount += requestInfo.amount;
-                                        addResultHelper(requestInfo.requestID, Result.APPROVED);
-                                    }
-                                    else {
-                                        addResultHelper(requestInfo.requestID, Result.DECLINED);
-                                    }
-                                    break;
-
-
-                                default:
-                                    addResultHelper(requestInfo.requestID, Result.DECLINED);
-
-                            }
-
-                        }else {
-                            addResultHelper(requestInfo.requestID, Result.DECLINED);
-                        }
-
-                    }else {
-                        addResultHelper(requestInfo.requestID, Result.REPLAY);
-                    }
-                    break;
-
-                case REFUND:
-                    if(!result.containsKey(requestInfo.requestID)) {
-                        if (transactions.containsKey(requestInfo.transactionID)) {
-                            TransactionInfo existing = transactions.get(requestInfo.transactionID);
-                            switch (existing.state){
-                                case CAPTURED, PARTIALLY_CAPTURED, PARTIALLY_REFUNDED:
-                                    if(existing.refundedAmount + requestInfo.amount < existing.capturedAmount){
-                                        existing.state = StateType.PARTIALLY_REFUNDED;
-                                        existing.refundedAmount += requestInfo.amount;
-
-                                        addResultHelper(requestInfo.requestID, Result.APPROVED);
-
-                                    }
-                                    else if(existing.capturedAmount + requestInfo.amount == existing.capturedAmount){
-                                        existing.state = StateType.REFUNDED;
-                                        existing.refundedAmount += requestInfo.amount;
-                                        addResultHelper(requestInfo.requestID, Result.APPROVED);
-                                    }
-                                    else {
-                                        addResultHelper(requestInfo.requestID, Result.DECLINED);
-                                    }
-                                    break;
-
-
-                                default:
-                                    addResultHelper(requestInfo.requestID, Result.DECLINED);
-
-                            }
-                        }else {
-                            addResultHelper(requestInfo.requestID, Result.DECLINED);
-                        }
-                    }else {
-                        addResultHelper(requestInfo.requestID, Result.REPLAY);
-                    }
-                    break;
-
-                case CANCEL:
-                    if(!result.containsKey(requestInfo.requestID)) {
-                        if (transactions.containsKey(requestInfo.transactionID)) {
-                            TransactionInfo existing = transactions.get(requestInfo.transactionID);
-                            switch (existing.state){
-                                case AUTHORIZED :
-                                    existing.state = StateType.CANCELED;
-                                    addResultHelper(requestInfo.requestID, Result.APPROVED);
-                                    break;
-                                default:
-                                    addResultHelper(requestInfo.requestID, Result.DECLINED);
-
-                            }
-                        }else {
-                            addResultHelper(requestInfo.requestID, Result.DECLINED);
-                        }
-                    }else {
-                        addResultHelper(requestInfo.requestID, Result.REPLAY);
-                    }
-                    break;
-
-            }
         }
 
 
@@ -278,6 +206,137 @@ public class PaymentOrchestratorSolution {
 
 
         return log;
+    }
+    private void processOneRequest(RequestInfo requestInfo){
+
+
+        // check on idempotency
+        if(result.containsKey(requestInfo.requestID)) {
+           addResultHelper(requestInfo.requestID, Result.REPLAY);
+           return;
+        }
+        // get transaction(can be null)
+        TransactionInfo transaction = transactions.get(requestInfo.transactionID);
+
+        // separate case for retry
+        if(requestInfo.action == ActionType.RETRY){
+            if(transaction == null){
+                addResultHelper(requestInfo.requestID, Result.DECLINED);
+                return;
+            }
+            boolean res = isRequestReattempted(transaction);
+            addResultHelper(requestInfo.requestID, res ? Result.APPROVED : Result.DECLINED);
+            return;
+        }
+        // check if transaction has failure
+        if(transaction != null && transaction.failedTransaction != null){
+            addResultHelper(requestInfo.requestID, Result.DECLINED);
+            return;
+        }
+        // check if transaction is new and request action is AUTHORIZE
+        if(transaction == null){
+
+            if(requestInfo.action != ActionType.AUTHORIZE){
+                addResultHelper(requestInfo.requestID, Result.DECLINED);
+                return;
+            }
+            transaction = new TransactionInfo(requestInfo.transactionID, requestInfo.currency);
+            boolean res = executeAction(requestInfo.action, transaction, requestInfo.amount);
+            addResultHelper(requestInfo.requestID, res ? Result.APPROVED : Result.DECLINED);
+            return;
+        }
+        // for rest cases
+        boolean res = executeAction(requestInfo.action, transaction, requestInfo.amount);
+        addResultHelper(requestInfo.requestID, res ? Result.APPROVED : Result.DECLINED);
+
+
+
+    }
+
+
+    // reattempt request if transaction has failure
+    // if failed transaction was reattempted successfully make failedTransaction equals to null
+    private boolean isRequestReattempted(TransactionInfo transaction){
+        if (transaction.failedTransaction != null) {
+            if(executeAction(transaction.failedTransaction.failedAction, transaction, transaction.failedTransaction.amount)){
+                transaction.failedTransaction = null;
+                return true;
+            }
+        }
+        return false;
+
+    }
+    private boolean executeAction(ActionType action, TransactionInfo transaction, long amount){
+        if (amount < 0) return false; // check if amount is positive
+
+        switch (action) {
+            case AUTHORIZE:
+                if (!transaction.state.equals(StateType.NEW)) return false;
+
+                transaction.authorizedAmount = amount;
+                transaction.state = StateType.AUTHORIZED;
+
+                transactions.put(transaction.transactionID, transaction);
+                return true;
+
+
+            case CAPTURE:
+                switch (transaction.state) {
+                    case AUTHORIZED, PARTIALLY_CAPTURED:
+                        if (transaction.capturedAmount + amount < transaction.authorizedAmount) {
+                            transaction.state = StateType.PARTIALLY_CAPTURED;
+                            transaction.capturedAmount += amount;
+
+                            return true;
+
+                        } else if (transaction.capturedAmount + amount == transaction.authorizedAmount) {
+                            transaction.state = StateType.CAPTURED;
+                            transaction.capturedAmount += amount;
+                            return true;
+                        } else {
+                            return false;
+                        }
+
+                    default:
+                        return false;
+                }
+
+            case REFUND:
+                switch (transaction.state) {
+                    case CAPTURED, PARTIALLY_CAPTURED, PARTIALLY_REFUNDED:
+                        if (transaction.refundedAmount + amount < transaction.capturedAmount) {
+                            transaction.state = StateType.PARTIALLY_REFUNDED;
+                            transaction.refundedAmount += amount;
+
+                            return true;
+
+                        } else if (transaction.refundedAmount + amount == transaction.capturedAmount) {
+                            transaction.state = StateType.REFUNDED;
+                            transaction.refundedAmount += amount;
+                            return true;
+                        } else {
+                            return false;
+                        }
+
+
+
+                    default:
+                        return false;
+
+                }
+
+
+
+            case CANCEL:
+                switch (transaction.state) {
+                    case AUTHORIZED:
+                        transaction.state = StateType.CANCELED;
+                        return true;
+                    default:
+                        return false;
+                }
+        }
+        return false;
     }
     private void addResultHelper(String requestId, Result res){
         result.put(requestId, res);
